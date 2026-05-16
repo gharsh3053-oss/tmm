@@ -17,7 +17,15 @@ export async function GET() {
 
     if (projectIds.length === 0) {
       return NextResponse.json({
-        stats: { total: 0, todo: 0, inProgress: 0, done: 0, overdue: 0 },
+        stats: {
+          total: 0,
+          todo: 0,
+          inProgress: 0,
+          done: 0,
+          overdue: 0,
+        },
+        tasksByStatus: { todo: 0, inProgress: 0, done: 0 },
+        tasksPerUser: [],
         myTasks: [],
         overdueTasks: [],
         recentProjects: [],
@@ -45,6 +53,51 @@ export async function GET() {
       ).length,
     };
 
+    const perUserMap = new Map<
+      string,
+      {
+        userId: string;
+        name: string;
+        total: number;
+        todo: number;
+        inProgress: number;
+        done: number;
+        overdue: number;
+      }
+    >();
+
+    for (const task of tasks) {
+      const userId = task.assigneeId ?? "unassigned";
+      const name = task.assignee?.name ?? "Unassigned";
+      if (!perUserMap.has(userId)) {
+        perUserMap.set(userId, {
+          userId,
+          name,
+          total: 0,
+          todo: 0,
+          inProgress: 0,
+          done: 0,
+          overdue: 0,
+        });
+      }
+      const row = perUserMap.get(userId)!;
+      row.total += 1;
+      if (task.status === TaskStatus.TODO) row.todo += 1;
+      if (task.status === TaskStatus.IN_PROGRESS) row.inProgress += 1;
+      if (task.status === TaskStatus.DONE) row.done += 1;
+      if (
+        task.dueDate &&
+        task.dueDate < now &&
+        task.status !== TaskStatus.DONE
+      ) {
+        row.overdue += 1;
+      }
+    }
+
+    const tasksPerUser = Array.from(perUserMap.values()).sort(
+      (a, b) => b.total - a.total
+    );
+
     const myTasks = tasks
       .filter((t) => t.assigneeId === session.userId && t.status !== TaskStatus.DONE)
       .slice(0, 10);
@@ -56,7 +109,7 @@ export async function GET() {
           t.dueDate < now &&
           t.status !== TaskStatus.DONE
       )
-      .sort((a, b) => (a.dueDate!.getTime() - b.dueDate!.getTime()))
+      .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
       .slice(0, 10);
 
     const recentProjects = await prisma.project.findMany({
@@ -66,7 +119,18 @@ export async function GET() {
       select: { id: true, name: true, updatedAt: true },
     });
 
-    return NextResponse.json({ stats, myTasks, overdueTasks, recentProjects });
+    return NextResponse.json({
+      stats,
+      tasksByStatus: {
+        todo: stats.todo,
+        inProgress: stats.inProgress,
+        done: stats.done,
+      },
+      tasksPerUser,
+      myTasks,
+      overdueTasks,
+      recentProjects,
+    });
   } catch (e) {
     if (e instanceof Response) return e;
     console.error(e);

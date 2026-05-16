@@ -22,13 +22,15 @@ export async function GET() {
 
     const enriched = projects.map((p) => {
       const myMembership = p.members.find((m) => m.userId === session.userId);
+      const role = myMembership?.role ?? ProjectRole.MEMBER;
       return {
         id: p.id,
         name: p.name,
         description: p.description,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
-        role: myMembership?.role,
+        role,
+        isAdmin: role === ProjectRole.ADMIN,
         memberCount: p.members.length,
         taskCount: p._count.tasks,
       };
@@ -72,7 +74,18 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ project }, { status: 201 });
+    const myMembership = project.members.find((m) => m.userId === session.userId);
+
+    return NextResponse.json(
+      {
+        project: {
+          ...project,
+          role: myMembership?.role ?? ProjectRole.ADMIN,
+          isAdmin: true,
+        },
+      },
+      { status: 201 }
+    );
   } catch (e) {
     if (e instanceof Response) return e;
     console.error(e);
