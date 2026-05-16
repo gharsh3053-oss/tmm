@@ -1,0 +1,38 @@
+{
+  "name": "abc",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "lsof -ti:3000,3001 | xargs kill -9 2>/dev/null; rm -rf .next && next dev -p 3000",
+    "dev:reset": "lsof -ti:3000,3001 | xargs kill -9 2>/dev/null; rm -rf .next && prisma db push && next dev -p 3000",
+    "build": "prisma generate && next build",
+    "start": "next start -p ${PORT:-3000}",
+    "db:setup": "prisma db push",
+    "postinstall": "prisma generate",
+    "lint": "next lint",
+    "db:migrate": "prisma migrate deploy",
+    "db:push": "prisma db push"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.3",
+    "next": "15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.1.0",
+    "postcss": "^8",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}

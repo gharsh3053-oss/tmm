@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #121212;
+  --bg-elevated: #1a1a1a;
+  --surface: #1e1e1e;
+  --surface-hover: #262626;
+  --surface-raised: #2a2a2a;
+  --border: #333333;
+  --border-subtle: #2a2a2a;
+  --text: #f5f5f5;
+  --text-muted: #9ca3af;
+  --text-dim: #6b7280;
+  --accent: #d35400;
+  --accent-hover: #e67e22;
+  --accent-light: #f39c12;
+  --accent-muted: rgba(211, 84, 0, 0.15);
+  --accent-glow: rgba(211, 84, 0, 0.35);
+  --success: #22c55e;
+  --warning: #eab308;
+  --danger: #ef4444;
+}
+
+body {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+@layer components {
+  .virtus-bg {
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(ellipse 70% 50% at 10% -20%, rgba(211, 84, 0, 0.08), transparent),
+      radial-gradient(ellipse 50% 40% at 90% 100%, rgba(211, 84, 0, 0.05), transparent);
+  }
+
+  .bento-card {
+    @apply rounded-2xl border border-[var(--border-subtle)] bg-[var(--surface)] p-5 shadow-lg shadow-black/30;
+  }
+
+  .surface-card {
+    @apply bento-card;
+  }
+
+  .surface-card-hover {
+    @apply transition-all duration-200 hover:border-[var(--border)] hover:bg-[var(--surface-hover)];
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-[#f39c12] via-[#e67e22] to-[#d35400] bg-clip-text text-transparent;
+  }
+
+  .btn-primary {
+    @apply rounded-2xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[var(--accent-glow)] transition hover:bg-[var(--accent-hover)] active:scale-[0.98] disabled:opacity-50;
+  }
+
+  .btn-accent {
+    @apply rounded-2xl border bg-[var(--accent-muted)] px-5 py-2.5 text-sm font-semibold text-[#f39c12] transition hover:bg-[var(--accent)] hover:text-white active:scale-[0.98] disabled:opacity-50;
+    border-color: rgba(211, 84, 0, 0.4);
+  }
+
+  .btn-ghost {
+    @apply rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-white;
+  }
+
+  .btn-ghost:hover {
+    border-color: rgba(211, 84, 0, 0.3);
+  }
+
+  .btn-soft {
+    @apply rounded-2xl bg-[var(--surface-raised)] px-4 py-2 text-sm font-medium text-[var(--text-muted)] transition hover:bg-[var(--surface-hover)] hover:text-white;
+  }
+
+  .input-field {
+    @apply mt-1.5 w-full rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-4 py-2.5 text-sm text-[var(--text)] placeholder:text-[var(--text-dim)] focus:outline-none focus:ring-2;
+    --tw-ring-color: rgba(211, 84, 0, 0.2);
+  }
+
+  .input-field:focus {
+    border-color: rgba(211, 84, 0, 0.5);
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider;
+  }
+
+  .pill-active {
+    @apply rounded-2xl bg-[var(--accent-muted)] text-[var(--accent-light)] ring-1;
+    --tw-ring-color: rgba(211, 84, 0, 0.3);
+  }
+
+  .glass,
+  .mesh-bg,
+  .executive-bg {
+    @apply virtus-bg;
+  }
+
+  .glass-hover {
+    @apply surface-card-hover;
+  }
+}

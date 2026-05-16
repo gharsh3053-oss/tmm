@@ -1,0 +1,43 @@
+import bcrypt from "bcryptjs";
+import { NextRequest, NextResponse } from "next/server";
+import { createToken, setSessionCookie } from "@/lib/auth";
+import { jsonError } from "@/lib/api";
+import { handleDbError } from "@/lib/db-error";
+import { prisma } from "@/lib/prisma";
+import { signupSchema } from "@/lib/validations";
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const parsed = signupSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Validation failed", details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const { email, password, name } = parsed.data;
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) return jsonError("Email already registered", 409);
+
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: { email, password: hashed, name },
+    });
+
+    const token = await createToken({
+      userId: user.id,
+      email: user.email,
+      name: user.name,
+    });
+
+    const res = NextResponse.json({
+      user: { id: user.id, email: user.email, name: user.name },
+    });
+    setSessionCookie(res, token);
+    return res;
+  } catch (e) {
+    return handleDbError(e);
+  }
+}

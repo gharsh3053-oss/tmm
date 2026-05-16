@@ -1,0 +1,7 @@
+{
+  "/api/team-progress/route": "app/api/team-progress/route.js",
+  "/api/projects/route": "app/api/projects/route.js",
+  "/api/projects/[id]/route": "app/api/projects/[id]/route.js",
+  "/api/projects/[id]/tasks/route": "app/api/projects/[id]/tasks/route.js",
+  "/(protected)/dashboard/page": "app/(protected)/dashboard/page.js"
+}
