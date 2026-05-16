@@ -2,7 +2,9 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { LoadingPulse, StatusBadge } from "@/components/ui";
+import { LoadingPulse, PriorityBadge, StatusBadge } from "@/components/ui";
+import { apiFetch } from "@/lib/client-fetch";
+import { memberLabel, parseProjectMembers, type ProjectMemberOption } from "@/lib/project-members";
 
 type Member = {
   id: string;
@@ -15,6 +17,7 @@ type Task = {
   title: string;
   description: string | null;
   status: string;
+  priority: string;
   dueDate: string | null;
   assignee: { id: string; name: string } | null;
 };
@@ -24,6 +27,9 @@ type Project = {
   name: string;
   description: string | null;
   myRole: string;
+  currentUserId: string;
+  canManageTasks: boolean;
+  canManageMembers: boolean;
   members: Member[];
   tasks: Task[];
 };
@@ -40,27 +46,36 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
+  const [teamMembers, setTeamMembers] = useState<ProjectMemberOption[]>([]);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"tasks" | "team">("tasks");
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/projects/${id}`);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
+    const [projectRes, membersRes] = await Promise.all([
+      apiFetch(`/api/projects/${id}`),
+      apiFetch(`/api/projects/${id}/members`),
+    ]);
+    const data = await projectRes.json();
+    if (!projectRes.ok) throw new Error(data.error);
     setProject(data.project);
+
+    const membersData = await membersRes.json();
+    if (membersRes.ok) {
+      setTeamMembers(parseProjectMembers(membersData.members));
+    }
   }, [id]);
 
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, [load]);
 
-  const isAdmin = project?.myRole === "ADMIN";
+  const isAdmin = project?.canManageMembers ?? false;
 
   async function addTask(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formEl = e.currentTarget;
     const form = new FormData(formEl);
-    const res = await fetch(`/api/projects/${id}/tasks`, {
+    const res = await apiFetch(`/api/projects/${id}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -70,6 +85,7 @@ export default function ProjectDetailPage() {
         dueDate: form.get("dueDate")
           ? new Date(form.get("dueDate") as string).toISOString()
           : null,
+        priority: form.get("priority") || "MEDIUM",
       }),
     });
     const data = await res.json();
@@ -82,7 +98,7 @@ export default function ProjectDetailPage() {
   }
 
   async function updateTaskStatus(taskId: string, status: string) {
-    const res = await fetch(`/api/tasks/${taskId}`, {
+    const res = await apiFetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -97,7 +113,11 @@ export default function ProjectDetailPage() {
 
   async function deleteTask(taskId: string) {
     if (!confirm("Delete this task? This cannot be undone.")) return;
-    await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || "Could not delete task");
+    }
     await load();
   }
 
@@ -105,7 +125,7 @@ export default function ProjectDetailPage() {
     e.preventDefault();
     const formEl = e.currentTarget;
     const form = new FormData(formEl);
-    const res = await fetch(`/api/projects/${id}/members`, {
+    const res = await apiFetch(`/api/projects/${id}/members`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -120,17 +140,25 @@ export default function ProjectDetailPage() {
     }
     formEl.reset();
     await load();
+    window.dispatchEvent(new Event("tasktrack:member-added"));
   }
 
   async function removeMember(memberId: string) {
     if (!confirm("Remove this member from the project?")) return;
-    await fetch(`/api/projects/${id}/members/${memberId}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/projects/${id}/members/${memberId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      alert(data.error || "Could not remove member");
+      return;
+    }
     await load();
   }
 
   async function deleteProject() {
     if (!confirm("Delete this entire project? All tasks will be removed.")) return;
-    const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/projects/${id}`, { method: "DELETE" });
     if (res.ok) router.push("/projects");
   }
 
@@ -181,6 +209,7 @@ export default function ProjectDetailPage() {
 
       {tab === "tasks" && (
         <div className="space-y-6">
+          {isAdmin ? (
           <form onSubmit={addTask} className="surface-card space-y-4 p-6">
             <h2 className="font-bold text-white">Add Task</h2>
             <input
@@ -189,14 +218,24 @@ export default function ProjectDetailPage() {
               required
               className="input-field"
             />
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <select name="assigneeId" className="input-field !mt-0">
                 <option value="">Unassigned</option>
-                {project.members.map((m) => (
+                {teamMembers.map((m) => (
                   <option key={m.user.id} value={m.user.id}>
-                    {m.user.name}
+                    {memberLabel(m)}
                   </option>
                 ))}
+              </select>
+              {teamMembers.length <= 1 && (
+                <p className="mt-1 text-xs text-amber-400/90">
+                  Go to Team tab → add members by email (they must sign up first).
+                </p>
+              )}
+              <select name="priority" className="input-field !mt-0" defaultValue="MEDIUM">
+                <option value="LOW">Low priority</option>
+                <option value="MEDIUM">Medium priority</option>
+                <option value="HIGH">High priority</option>
               </select>
               <input name="dueDate" type="date" className="input-field !mt-0" />
             </div>
@@ -210,10 +249,21 @@ export default function ProjectDetailPage() {
               Add Task
             </button>
           </form>
+          ) : (
+            <p className="surface-card px-4 py-3 text-sm text-[var(--text-muted)]">
+              As a member, you only see tasks assigned to you. Update status from this list or{" "}
+              <a href="/my-tasks" className="text-[var(--accent-light)] hover:underline">
+                My Tasks
+              </a>
+              .
+            </p>
+          )}
 
           {project.tasks.length === 0 ? (
             <div className="surface-card p-10 text-center text-[var(--text-muted)]">
-              No tasks yet. Add one above to get started.
+              {isAdmin
+                ? "No tasks yet. Add one above to get started."
+                : "No tasks assigned to you in this project."}
             </div>
           ) : (
             <ul className="space-y-3">
@@ -223,7 +273,10 @@ export default function ProjectDetailPage() {
                   className="surface-card surface-card-hover flex flex-wrap items-center justify-between gap-3 p-4"
                 >
                   <div>
-                    <p className="font-semibold text-white">{task.title}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-white">{task.title}</p>
+                      <PriorityBadge priority={task.priority} />
+                    </div>
                     <p className="text-xs text-[var(--text-dim)]">
                       {task.assignee ? task.assignee.name : "Unassigned"}
                       {task.dueDate &&
@@ -231,6 +284,7 @@ export default function ProjectDetailPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {isAdmin || task.assignee?.id === project.currentUserId ? (
                     <select
                       value={task.status}
                       onChange={(e) => updateTaskStatus(task.id, e.target.value)}
@@ -242,6 +296,9 @@ export default function ProjectDetailPage() {
                         </option>
                       ))}
                     </select>
+                    ) : (
+                      <StatusBadge status={task.status} />
+                    )}
                     {isAdmin && (
                       <button
                         onClick={() => deleteTask(task.id)}
@@ -284,7 +341,7 @@ export default function ProjectDetailPage() {
           )}
 
           <ul className="surface-card divide-y divide-[var(--border-subtle)] overflow-hidden">
-            {project.members.map((m) => (
+            {teamMembers.map((m) => (
               <li
                 key={m.id}
                 className="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-[var(--surface-hover)]"

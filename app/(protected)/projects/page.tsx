@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useCreateTask } from "@/components/dashboard/CreateTaskContext";
+import { useUserRole } from "@/components/dashboard/UserRoleContext";
 import { LoadingPulse, PageHeader, StatusBadge } from "@/components/ui";
+import { apiFetch } from "@/lib/client-fetch";
 
 type Project = {
   id: string;
@@ -20,9 +22,10 @@ export default function ProjectsPage() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const { openCreateTask } = useCreateTask();
+  const { isAdmin } = useUserRole();
 
   async function load() {
-    const res = await fetch("/api/projects");
+    const res = await apiFetch("/api/projects");
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     setProjects(data.projects);
@@ -38,9 +41,8 @@ export default function ProjectsPage() {
     e.preventDefault();
     const formEl = e.currentTarget;
     const form = new FormData(formEl);
-    const res = await fetch("/api/projects", {
+    const res = await apiFetch("/api/projects", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.get("name"),
         description: form.get("description") || undefined,
@@ -53,7 +55,11 @@ export default function ProjectsPage() {
     }
     formEl.reset();
     setShowForm(false);
-    await load();
+    if (data.project?.id) {
+      window.location.href = `/projects/${data.project.id}`;
+    } else {
+      await load();
+    }
   }
 
   if (loading) return <LoadingPulse text="Loading projects..." />;
@@ -69,12 +75,18 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Projects"
-        subtitle="Manage teams, tasks, and delivery across initiatives"
+        subtitle={
+          isAdmin
+            ? "Create projects (you become Admin), add/remove members, manage tasks"
+            : "Projects you have been assigned to as a team member"
+        }
         action={
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => openCreateTask()} className="btn-accent">
-              + Create Task
-            </button>
+            {isAdmin && (
+              <button type="button" onClick={() => openCreateTask()} className="btn-accent">
+                + Create Task
+              </button>
+            )}
             <button type="button" onClick={() => setShowForm(!showForm)} className="btn-primary">
               {showForm ? "Cancel" : "+ New Project"}
             </button>
@@ -110,7 +122,11 @@ export default function ProjectsPage() {
 
       {projects.length === 0 ? (
         <div className="surface-card p-12 text-center">
-          <p className="text-[var(--text-muted)]">No projects yet. Create your first initiative above.</p>
+          <p className="text-[var(--text-muted)]">
+            {isAdmin
+              ? "No projects yet. Create your first project above — you will be the Admin."
+              : "You are not on any projects yet. Ask a project admin to add your signup email as a member."}
+          </p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
