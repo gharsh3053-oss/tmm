@@ -2,16 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
 import {
   IconDashboard,
   IconLogout,
   IconPlus,
   IconProjects,
   IconTasks,
-  IconTeam,
 } from "./icons";
 import { useCreateTask } from "./CreateTaskContext";
+import { useUserRole } from "./UserRoleContext";
 
 function getInitials(name: string) {
   return name
@@ -23,17 +22,12 @@ function getInitials(name: string) {
 }
 
 const navItems = [
-  { href: "/dashboard", label: "Home", icon: IconDashboard },
-  { href: "/schedule", label: "Schedule", icon: IconTasks },
-  { href: "/progress", label: "Progress", icon: IconTeam },
+  { href: "/dashboard", label: "Dashboard", icon: IconDashboard },
   { href: "/projects", label: "Projects", icon: IconProjects, matchPrefix: true },
+  { href: "/my-tasks", label: "My Tasks", icon: IconTasks },
 ] as const;
 
-function isNavActive(
-  pathname: string,
-  href: string,
-  matchPrefix?: boolean
-) {
+function isNavActive(pathname: string, href: string, matchPrefix?: boolean) {
   if (matchPrefix) {
     return pathname === href || pathname.startsWith(`${href}/`);
   }
@@ -50,46 +44,31 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { openCreateTask } = useCreateTask();
-  const [search, setSearch] = useState("");
+  const { isAdmin } = useUserRole();
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     router.push("/login");
     router.refresh();
   }
-
-  const filteredNav = navItems.filter((item) =>
-    item.label.toLowerCase().includes(search.toLowerCase())
-  );
 
   return (
     <aside className="fixed left-0 top-0 z-30 flex h-screen w-[260px] flex-col border-r border-[var(--border-subtle)] bg-[var(--bg)] shadow-xl shadow-black/20">
       <div className="shrink-0 px-4 pb-4 pt-6">
         <div className="flex items-center gap-3 px-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--accent)] shadow-lg shadow-[var(--accent-glow)]">
-            <span className="text-lg font-black text-white">V</span>
+            <span className="text-lg font-black text-white">T</span>
           </div>
           <div>
-            <p className="text-lg font-bold text-white">Virtus</p>
-            <p className="text-[10px] text-[var(--text-dim)]">Task Track</p>
+            <p className="text-lg font-bold text-white">Team Task</p>
+            <p className="text-[10px] text-[var(--text-dim)]">Manager</p>
           </div>
-        </div>
-
-        <div className="relative mt-6">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search..."
-            className="input-field !mt-0 w-full rounded-2xl py-2.5 pl-4 pr-10 text-sm"
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-dim)]">⌕</span>
         </div>
       </div>
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-4 scroll-smooth">
         <div className="space-y-1">
-          {(search ? filteredNav : navItems).map((item) => {
+          {navItems.map((item) => {
             const active = isNavActive(
               pathname,
               item.href,
@@ -111,14 +90,16 @@ export function Sidebar({
               </Link>
             );
           })}
-          <button
-            type="button"
-            onClick={() => openCreateTask()}
-            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-[var(--text-muted)] transition hover:bg-[var(--surface)] hover:text-white"
-          >
-            <IconPlus className="h-5 w-5" />
-            Create Task
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => openCreateTask()}
+              className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-[var(--text-muted)] transition hover:bg-[var(--surface)] hover:text-white"
+            >
+              <IconPlus className="h-5 w-5" />
+              Create Task
+            </button>
+          )}
         </div>
       </nav>
 
@@ -139,7 +120,7 @@ export function Sidebar({
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">{userName}</p>
             <p className="text-[10px] text-[var(--text-dim)]">
-              {userRole === "ADMIN" ? "Project Lead" : "Member"}
+              {userRole === "ADMIN" ? "Admin" : "Member"}
             </p>
           </div>
         </div>

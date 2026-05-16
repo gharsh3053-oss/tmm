@@ -2,6 +2,24 @@ import Link from "next/link";
 
 export { AuthShell } from "@/components/auth/AuthShell";
 
+export function PriorityBadge({ priority }: { priority: string }) {
+  const map: Record<string, string> = {
+    LOW: "badge bg-sky-500/15 text-sky-300 border border-sky-500/25",
+    MEDIUM: "badge bg-amber-500/15 text-amber-300 border border-amber-500/25",
+    HIGH: "badge bg-rose-500/15 text-rose-300 border border-rose-500/25",
+  };
+  const labels: Record<string, string> = {
+    LOW: "Low",
+    MEDIUM: "Medium",
+    HIGH: "High",
+  };
+  return (
+    <span className={map[priority] ?? "badge bg-white/10 text-zinc-300"}>
+      {labels[priority] ?? priority}
+    </span>
+  );
+}
+
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     TODO: "badge bg-[var(--surface-raised)] text-[var(--text-muted)] border border-[var(--border)]",
@@ -11,8 +29,8 @@ export function StatusBadge({ status }: { status: string }) {
     MEMBER: "badge bg-[var(--surface-raised)] text-[var(--text-muted)] border border-[var(--border)]",
   };
   const labels: Record<string, string> = {
-    TODO: "Pending",
-    IN_PROGRESS: "Progress",
+    TODO: "To Do",
+    IN_PROGRESS: "In Progress",
     DONE: "Done",
     ADMIN: "Lead",
     MEMBER: "Member",

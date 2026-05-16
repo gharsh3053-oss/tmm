@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Virtus | Project Management",
-  description: "Dark-mode team progress, goals, and task management",
+  title: "Team Task Manager",
+  description: "Team task management with projects, roles, tasks, and dashboard",
 };
 
 export default function RootLayout({
