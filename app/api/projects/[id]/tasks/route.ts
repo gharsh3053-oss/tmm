@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TaskStatus } from "@/lib/constants";
+import { ProjectRole, TaskPriority, TaskStatus } from "@/lib/constants";
 import { requireAuth, jsonError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { requireMembership } from "@/lib/rbac";
+import { requireAdmin, requireMembership } from "@/lib/rbac";
 import { taskSchema } from "@/lib/validations";
 
 type Params = { params: Promise<{ id: string }> };
@@ -11,10 +11,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const session = await requireAuth();
     const { id: projectId } = await params;
-    await requireMembership(session.userId, projectId);
+    const membership = await requireMembership(session.userId, projectId);
 
     const tasks = await prisma.task.findMany({
-      where: { projectId },
+      where: {
+        projectId,
+        ...(membership.role !== ProjectRole.ADMIN && {
+          assigneeId: session.userId,
+        }),
+      },
       include: {
         assignee: { select: { id: true, name: true, email: true } },
         createdBy: { select: { id: true, name: true } },
@@ -34,7 +39,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   try {
     const session = await requireAuth();
     const { id: projectId } = await params;
-    await requireMembership(session.userId, projectId);
+    await requireAdmin(session.userId, projectId);
 
     const body = await req.json();
     const parsed = taskSchema.safeParse(body);
@@ -61,6 +66,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         title: parsed.data.title,
         description: parsed.data.description,
         status: parsed.data.status ?? TaskStatus.TODO,
+        priority: parsed.data.priority ?? TaskPriority.MEDIUM,
         dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
         assigneeId: parsed.data.assigneeId ?? null,
         projectId,

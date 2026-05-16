@@ -31,19 +31,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const isAdmin = membership.role === ProjectRole.ADMIN;
 
     if (!isAdmin && !isAssignee) {
-      if (parsed.data.status && task.assigneeId === session.userId) {
-        // allow status-only for assignee - handled below
-      } else if (!isAssignee) {
-        return jsonError("Only admin or assignee can update this task", 403);
-      }
+      return jsonError("Only admin or assignee can update this task", 403);
     }
 
     if (!isAdmin) {
-      const restricted = { title: parsed.data.title, description: parsed.data.description, assigneeId: parsed.data.assigneeId, dueDate: parsed.data.dueDate };
+      const restricted = {
+        title: parsed.data.title,
+        description: parsed.data.description,
+        assigneeId: parsed.data.assigneeId,
+        dueDate: parsed.data.dueDate,
+        priority: parsed.data.priority,
+      };
       if (Object.values(restricted).some((v) => v !== undefined)) {
         return jsonError("Members can only update status on assigned tasks", 403);
       }
-      if (!isAssignee) return jsonError("Forbidden", 403);
     }
 
     if (parsed.data.assigneeId) {
@@ -65,6 +66,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : null,
         }),
         ...(parsed.data.assigneeId !== undefined && { assigneeId: parsed.data.assigneeId }),
+        ...(parsed.data.priority !== undefined && { priority: parsed.data.priority }),
       },
       include: {
         assignee: { select: { id: true, name: true, email: true } },

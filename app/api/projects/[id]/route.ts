@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ProjectRole } from "@/lib/constants";
 import { requireAuth, jsonError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { requireMembership, requireAdmin } from "@/lib/rbac";
@@ -31,8 +32,22 @@ export async function GET(_req: NextRequest, { params }: Params) {
     if (!project) return jsonError("Project not found", 404);
 
     const myRole = project.members.find((m) => m.userId === session.userId)?.role;
+    const isAdmin = myRole === ProjectRole.ADMIN;
 
-    return NextResponse.json({ project: { ...project, myRole } });
+    const visibleTasks = isAdmin
+      ? project.tasks
+      : project.tasks.filter((t) => t.assigneeId === session.userId);
+
+    return NextResponse.json({
+      project: {
+        ...project,
+        tasks: visibleTasks,
+        myRole,
+        currentUserId: session.userId,
+        canManageTasks: isAdmin,
+        canManageMembers: isAdmin,
+      },
+    });
   } catch (e) {
     if (e instanceof Response) return e;
     console.error(e);

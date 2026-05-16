@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, jsonError } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/rbac";
+import { requireAdmin, requireMembership } from "@/lib/rbac";
 import { memberSchema } from "@/lib/validations";
 
 type Params = { params: Promise<{ id: string }> };
+
+export async function GET(_req: NextRequest, { params }: Params) {
+  try {
+    const session = await requireAuth();
+    const { id: projectId } = await params;
+    await requireMembership(session.userId, projectId);
+
+    const members = await prisma.projectMember.findMany({
+      where: { projectId },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return NextResponse.json({ members });
+  } catch (e) {
+    if (e instanceof Response) return e;
+    console.error(e);
+    return jsonError("Internal server error", 500);
+  }
+}
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
@@ -30,6 +52,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       where: { userId_projectId: { userId: user.id, projectId } },
     });
     if (existing) return jsonError("User is already a member", 409);
+    if (user.id === session.userId) {
+      return jsonError("You are already a member of this project", 400);
+    }
 
     const member = await prisma.projectMember.create({
       data: {
