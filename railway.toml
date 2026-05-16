@@ -4,6 +4,7 @@ buildCommand = "npm run build"
 
 [deploy]
 startCommand = "npm run start"
-healthcheckPath = "/"
+preDeployCommand = "node scripts/railway-db-push.mjs"
+healthcheckPath = "/api/health"
 healthcheckTimeout = 120
 restartPolicyType = "on_failure"
