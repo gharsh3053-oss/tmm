@@ -1,13 +1,21 @@
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 import { createToken, setSessionCookie } from "@/lib/auth";
-import { jsonError } from "@/lib/api";
+import { handleAuthRouteError, jsonError } from "@/lib/api";
 import { handleDbError } from "@/lib/db-error";
+import { isAuthConfigured } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { signupSchema } from "@/lib/validations";
 
 export async function POST(req: NextRequest) {
   try {
+    if (!isAuthConfigured()) {
+      return jsonError(
+        "Authentication is not configured. Set JWT_SECRET in .env (32+ characters).",
+        503
+      );
+    }
+
     const body = await req.json();
     const parsed = signupSchema.safeParse(body);
     if (!parsed.success) {
@@ -38,6 +46,8 @@ export async function POST(req: NextRequest) {
     setSessionCookie(res, token);
     return res;
   } catch (e) {
+    const authErr = handleAuthRouteError(e);
+    if (authErr.status !== 500) return authErr;
     return handleDbError(e);
   }
 }
