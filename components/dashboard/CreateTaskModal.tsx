@@ -1,13 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { apiFetch } from "@/lib/client-fetch";
+import { memberLabel, parseProjectMembers, type ProjectMemberOption } from "@/lib/project-members";
 
 type Project = { id: string; name: string };
-
-type Member = {
-  user: { id: string; name: string; email: string };
-};
 
 export function CreateTaskModal({
   open,
@@ -20,17 +18,31 @@ export function CreateTaskModal({
 }) {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<ProjectMemberOption[]>([]);
   const [projectId, setProjectId] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [error, setError] = useState("");
 
+  const loadMembers = useCallback(async (pid: string) => {
+    setLoadingMembers(true);
+    try {
+      const res = await apiFetch(`/api/projects/${pid}/members`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load members");
+      setMembers(parseProjectMembers(data.members));
+    } catch {
+      setMembers([]);
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
 
     setError("");
-    fetch("/api/projects")
+    apiFetch("/api/projects")
       .then((r) => r.json())
       .then((d) => {
         if (d.error) throw new Error(d.error);
@@ -49,17 +61,17 @@ export function CreateTaskModal({
       setMembers([]);
       return;
     }
+    loadMembers(projectId);
+  }, [open, projectId, loadMembers]);
 
-    setLoadingMembers(true);
-    fetch(`/api/projects/${projectId}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.error) throw new Error(d.error);
-        setMembers(d.project?.members ?? []);
-      })
-      .catch(() => setMembers([]))
-      .finally(() => setLoadingMembers(false));
-  }, [open, projectId]);
+  useEffect(() => {
+    if (!open) return;
+    function onMemberAdded() {
+      if (projectId) loadMembers(projectId);
+    }
+    window.addEventListener("tasktrack:member-added", onMemberAdded);
+    return () => window.removeEventListener("tasktrack:member-added", onMemberAdded);
+  }, [open, projectId, loadMembers]);
 
   useEffect(() => {
     if (!open) return;
@@ -84,9 +96,8 @@ export function CreateTaskModal({
     const form = new FormData(e.currentTarget);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/tasks`, {
+      const res = await apiFetch(`/api/projects/${projectId}/tasks`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: form.get("title"),
           description: form.get("description") || undefined,
@@ -94,6 +105,7 @@ export function CreateTaskModal({
           dueDate: form.get("dueDate")
             ? new Date(form.get("dueDate") as string).toISOString()
             : null,
+          priority: form.get("priority") || "MEDIUM",
         }),
       });
       const data = await res.json();
@@ -129,7 +141,7 @@ export function CreateTaskModal({
               Create Task
             </h2>
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Add a new task to your project
+              Assign to any member on the selected project
             </p>
           </div>
           <button
@@ -197,7 +209,7 @@ export function CreateTaskModal({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">
                   Assignee
@@ -210,9 +222,24 @@ export function CreateTaskModal({
                   <option value="">Unassigned</option>
                   {members.map((m) => (
                     <option key={m.user.id} value={m.user.id}>
-                      {m.user.name}
+                      {memberLabel(m)}
                     </option>
                   ))}
+                </select>
+                {!loadingMembers && members.length <= 1 && (
+                  <p className="mt-1 text-xs text-amber-400/90">
+                    Add more people on the project Team tab first (they must sign up).
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">
+                  Priority
+                </label>
+                <select name="priority" className="input-field" defaultValue="MEDIUM">
+                  <option value="LOW">Low</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option>
                 </select>
               </div>
               <div>
