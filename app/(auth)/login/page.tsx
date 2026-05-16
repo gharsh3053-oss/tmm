@@ -1,13 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { FormEvent, Suspense, useState } from "react";
 import { AuthShell, LinkAccent } from "@/components/ui";
+import { apiFetch } from "@/lib/client-fetch";
 
-export default function LoginPage() {
-  const router = useRouter();
+function LoginForm() {
+  const searchParams = useSearchParams();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const from = searchParams.get("from");
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -15,9 +17,8 @@ export default function LoginPage() {
     setLoading(true);
     const form = new FormData(e.currentTarget);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await apiFetch("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: form.get("email"),
           password: form.get("password"),
@@ -25,8 +26,7 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
-      router.push("/dashboard");
-      router.refresh();
+      window.location.href = from && from.startsWith("/") ? from : "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
@@ -36,8 +36,8 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Sign in to your executive dashboard"
+      title="Sign in"
+      subtitle="Secure login with JWT session cookie"
       footer={
         <>
           New to Task Track? <LinkAccent href="/signup">Create an account</LinkAccent>
@@ -45,6 +45,11 @@ export default function LoginPage() {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {from && (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+            Please sign in to continue.
+          </p>
+        )}
         {error && (
           <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-300">
             {error}
@@ -67,5 +72,13 @@ export default function LoginPage() {
         </button>
       </form>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="virtus-bg min-h-screen" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -1,11 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { AuthShell, LinkAccent } from "@/components/ui";
+import { apiFetch } from "@/lib/client-fetch";
 
 export default function SignupPage() {
-  const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -15,9 +14,8 @@ export default function SignupPage() {
     setLoading(true);
     const form = new FormData(e.currentTarget);
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await apiFetch("/api/auth/signup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.get("name"),
           email: form.get("email"),
@@ -26,8 +24,7 @@ export default function SignupPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Signup failed");
-      router.push("/dashboard");
-      router.refresh();
+      window.location.href = "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
     } finally {
@@ -38,7 +35,7 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Create your account"
-      subtitle="Start managing team progress in minutes"
+      subtitle="Name, email, and password — then you get a secure JWT session"
       footer={
         <>
           Already have an account? <LinkAccent href="/login">Sign in</LinkAccent>
