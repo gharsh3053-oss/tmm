@@ -5,11 +5,11 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { CreateTaskProvider, useCreateTask } from "./CreateTaskContext";
 import { DashboardHeader } from "./DashboardHeader";
 import { Sidebar } from "./Sidebar";
+import { UserRoleProvider } from "./UserRoleContext";
 
 const titles: Record<string, string> = {
-  "/dashboard": "Home",
-  "/schedule": "Schedule",
-  "/progress": "Progress",
+  "/dashboard": "Dashboard",
+  "/my-tasks": "My Tasks",
   "/projects": "Projects",
 };
 
@@ -67,10 +67,12 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <CreateTaskProvider>
-      <ShellInner userName={userName} userRole={userRole}>
-        {children}
-      </ShellInner>
-    </CreateTaskProvider>
+    <UserRoleProvider userRole={userRole}>
+      <CreateTaskProvider>
+        <ShellInner userName={userName} userRole={userRole}>
+          {children}
+        </ShellInner>
+      </CreateTaskProvider>
+    </UserRoleProvider>
   );
 }
