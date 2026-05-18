@@ -21,7 +21,7 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-const navItems = [
+const baseNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: IconDashboard },
   { href: "/projects", label: "Projects", icon: IconProjects, matchPrefix: true },
   { href: "/my-tasks", label: "My Tasks", icon: IconTasks },
@@ -44,7 +44,7 @@ export function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const { openCreateTask } = useCreateTask();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isPlatformAdmin } = useUserRole();
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
@@ -68,7 +68,12 @@ export function Sidebar({
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-4 scroll-smooth">
         <div className="space-y-1">
-          {navItems.map((item) => {
+          {[
+            ...baseNavItems,
+            ...(isPlatformAdmin
+              ? [{ href: "/admin", label: "Admin", icon: IconDashboard, matchPrefix: true as const }]
+              : []),
+          ].map((item) => {
             const active = isNavActive(
               pathname,
               item.href,
@@ -120,7 +125,11 @@ export function Sidebar({
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">{userName}</p>
             <p className="text-[10px] text-[var(--text-dim)]">
-              {userRole === "ADMIN" ? "Admin" : "Member"}
+              {isPlatformAdmin
+                ? "Platform admin"
+                : userRole === "ADMIN"
+                  ? "Project admin"
+                  : "Member"}
             </p>
           </div>
         </div>

@@ -24,11 +24,19 @@ enum TaskPriority {
   HIGH
 }
 
+enum SystemRole {
+  USER
+  PLATFORM_ADMIN
+}
+
 model User {
   id            String          @id @default(cuid())
   email         String          @unique
   password      String
   name          String
+  systemRole    SystemRole      @default(USER)
+  isActive      Boolean         @default(true)
+  lastActiveAt  DateTime?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   memberships   ProjectMember[]

@@ -4,7 +4,9 @@ import { createToken, setSessionCookie } from "@/lib/auth";
 import { handleAuthRouteError, jsonError } from "@/lib/api";
 import { handleDbError } from "@/lib/db-error";
 import { isAuthConfigured } from "@/lib/auth";
+import { SystemRole } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
+import { isAdminEmail, touchLastActive } from "@/lib/system-admin";
 import { loginSchema } from "@/lib/validations";
 
 export async function POST(req: NextRequest) {
@@ -30,6 +32,17 @@ export async function POST(req: NextRequest) {
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return jsonError("Invalid email or password", 401);
     }
+    if (!user.isActive) {
+      return jsonError("Account is deactivated. Contact a platform admin.", 403);
+    }
+
+    if (isAdminEmail(email) && user.systemRole !== SystemRole.PLATFORM_ADMIN) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { systemRole: SystemRole.PLATFORM_ADMIN },
+      });
+    }
+    await touchLastActive(user.id);
 
     const token = await createToken({
       userId: user.id,

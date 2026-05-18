@@ -31,3 +31,9 @@ export const taskSchema = z.object({
 });
 
 export const taskUpdateSchema = taskSchema.partial();
+
+export const adminUserUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  systemRole: z.enum(["USER", "PLATFORM_ADMIN"]).optional(),
+  isActive: z.boolean().optional(),
+});

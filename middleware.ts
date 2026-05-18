@@ -20,7 +20,8 @@ function isProtectedPath(pathname: string) {
     pathname.startsWith("/projects") ||
     pathname.startsWith("/my-tasks") ||
     pathname.startsWith("/schedule") ||
-    pathname.startsWith("/progress")
+    pathname.startsWith("/progress") ||
+    pathname.startsWith("/admin")
   );
 }
 
@@ -68,6 +69,8 @@ export const config = {
     "/schedule/:path*",
     "/progress",
     "/progress/:path*",
+    "/admin",
+    "/admin/:path*",
     "/api/:path*",
   ],
 };

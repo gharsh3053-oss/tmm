@@ -11,6 +11,8 @@ const titles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/my-tasks": "My Tasks",
   "/projects": "Projects",
+  "/admin": "Platform admin",
+  "/admin/users": "Manage users",
 };
 
 function getTitle(pathname: string) {
@@ -60,14 +62,16 @@ function ShellInner({
 export function AppShell({
   userName,
   userRole,
+  isPlatformAdmin,
   children,
 }: {
   userName: string;
   userRole?: string;
+  isPlatformAdmin?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <UserRoleProvider userRole={userRole}>
+    <UserRoleProvider userRole={userRole} isPlatformAdmin={isPlatformAdmin}>
       <CreateTaskProvider>
         <ShellInner userName={userName} userRole={userRole}>
           {children}

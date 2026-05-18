@@ -1,16 +1,11 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useState, Suspense } from "react";
+import { ProjectManageTab } from "@/components/projects/ProjectManageTab";
 import { LoadingPulse, PriorityBadge, StatusBadge } from "@/components/ui";
 import { apiFetch } from "@/lib/client-fetch";
 import { memberLabel, parseProjectMembers, type ProjectMemberOption } from "@/lib/project-members";
-
-type Member = {
-  id: string;
-  role: string;
-  user: { id: string; name: string; email: string };
-};
 
 type Task = {
   id: string;
@@ -30,7 +25,6 @@ type Project = {
   currentUserId: string;
   canManageTasks: boolean;
   canManageMembers: boolean;
-  members: Member[];
   tasks: Task[];
 };
 
@@ -42,13 +36,16 @@ const statusLabels: Record<string, string> = {
   DONE: "Done",
 };
 
-export default function ProjectDetailPage() {
+function ProjectDetailContent() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [project, setProject] = useState<Project | null>(null);
   const [teamMembers, setTeamMembers] = useState<ProjectMemberOption[]>([]);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"tasks" | "team">("tasks");
+  const [tab, setTab] = useState<"tasks" | "manage">("tasks");
+
+  const isAdmin = project?.canManageMembers ?? false;
 
   const load = useCallback(async () => {
     const [projectRes, membersRes] = await Promise.all([
@@ -69,7 +66,18 @@ export default function ProjectDetailPage() {
     load().catch((e) => setError(e.message));
   }, [load]);
 
-  const isAdmin = project?.canManageMembers ?? false;
+  useEffect(() => {
+    if (!project) return;
+    const t = searchParams.get("tab");
+    if (t === "manage" && project.canManageMembers) setTab("manage");
+    else setTab("tasks");
+  }, [searchParams, project]);
+
+  function setTabAndUrl(next: "tasks" | "manage") {
+    setTab(next);
+    const url = next === "manage" ? `/projects/${id}?tab=manage` : `/projects/${id}`;
+    router.replace(url, { scroll: false });
+  }
 
   async function addTask(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -77,7 +85,6 @@ export default function ProjectDetailPage() {
     const form = new FormData(formEl);
     const res = await apiFetch(`/api/projects/${id}/tasks`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: form.get("title"),
         description: form.get("description") || undefined,
@@ -100,7 +107,6 @@ export default function ProjectDetailPage() {
   async function updateTaskStatus(taskId: string, status: string) {
     const res = await apiFetch(`/api/tasks/${taskId}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
     if (!res.ok) {
@@ -121,47 +127,6 @@ export default function ProjectDetailPage() {
     await load();
   }
 
-  async function addMember(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const formEl = e.currentTarget;
-    const form = new FormData(formEl);
-    const res = await apiFetch(`/api/projects/${id}/members`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: form.get("email"),
-        role: form.get("role"),
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error);
-      return;
-    }
-    formEl.reset();
-    await load();
-    window.dispatchEvent(new Event("tasktrack:member-added"));
-  }
-
-  async function removeMember(memberId: string) {
-    if (!confirm("Remove this member from the project?")) return;
-    const res = await apiFetch(`/api/projects/${id}/members/${memberId}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      alert(data.error || "Could not remove member");
-      return;
-    }
-    await load();
-  }
-
-  async function deleteProject() {
-    if (!confirm("Delete this entire project? All tasks will be removed.")) return;
-    const res = await apiFetch(`/api/projects/${id}`, { method: "DELETE" });
-    if (res.ok) router.push("/projects");
-  }
-
   if (error) {
     return (
       <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
@@ -175,83 +140,128 @@ export default function ProjectDetailPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#c9a227]">Project</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-[var(--accent-light)]">
+            Project
+          </p>
           <h1 className="mt-1 text-3xl font-bold text-white">{project.name}</h1>
           {project.description && (
             <p className="mt-2 text-[var(--text-muted)]">{project.description}</p>
           )}
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <StatusBadge status={project.myRole} />
+            <span className="text-xs text-[var(--text-dim)]">
+              {teamMembers.length} member{teamMembers.length === 1 ? "" : "s"}
+            </span>
           </div>
         </div>
         {isAdmin && (
-          <button onClick={deleteProject} className="btn-ghost border-rose-500/30 text-rose-300">
-            Delete Project
+          <button
+            type="button"
+            onClick={() => setTabAndUrl("manage")}
+            className="btn-primary"
+          >
+            Manage project
           </button>
         )}
       </div>
 
       <div className="flex gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-1 w-fit">
-        {(["tasks", "team"] as const).map((t) => (
+        <button
+          type="button"
+          onClick={() => setTabAndUrl("tasks")}
+          className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
+            tab === "tasks"
+              ? "bg-[var(--accent)] text-white shadow-md"
+              : "text-[var(--text-muted)] hover:text-white"
+          }`}
+        >
+          Tasks
+        </button>
+        {isAdmin && (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            type="button"
+            onClick={() => setTabAndUrl("manage")}
             className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
-              tab === t
-                ? "bg-indigo-600 text-white shadow-md"
+              tab === "manage"
+                ? "bg-[var(--accent)] text-white shadow-md"
                 : "text-[var(--text-muted)] hover:text-white"
             }`}
           >
-            {t === "tasks" ? "Tasks" : "Team"}
+            Update & assign
           </button>
-        ))}
+        )}
       </div>
+
+      {tab === "manage" && isAdmin && (
+        <ProjectManageTab
+          projectId={id}
+          name={project.name}
+          description={project.description}
+          teamMembers={teamMembers}
+          onUpdated={load}
+        />
+      )}
 
       {tab === "tasks" && (
         <div className="space-y-6">
           {isAdmin ? (
-          <form onSubmit={addTask} className="surface-card space-y-4 p-6">
-            <h2 className="font-bold text-white">Add Task</h2>
-            <input
-              name="title"
-              placeholder="Task title"
-              required
-              className="input-field"
-            />
-            <div className="grid gap-4 sm:grid-cols-3">
-              <select name="assigneeId" className="input-field !mt-0">
-                <option value="">Unassigned</option>
-                {teamMembers.map((m) => (
-                  <option key={m.user.id} value={m.user.id}>
-                    {memberLabel(m)}
-                  </option>
-                ))}
-              </select>
+            <form onSubmit={addTask} className="surface-card space-y-4 p-6">
+              <h2 className="font-bold text-white">Add Task</h2>
+              <input
+                name="title"
+                placeholder="Task title"
+                required
+                className="input-field"
+              />
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">
+                    Assignee
+                  </label>
+                  <select name="assigneeId" className="input-field !mt-0">
+                    <option value="">Unassigned</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.user.id} value={m.user.id}>
+                        {memberLabel(m)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">
+                    Priority
+                  </label>
+                  <select name="priority" className="input-field !mt-0" defaultValue="MEDIUM">
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--text-dim)]">
+                    Due date
+                  </label>
+                  <input name="dueDate" type="date" className="input-field !mt-0" />
+                </div>
+              </div>
               {teamMembers.length <= 1 && (
-                <p className="mt-1 text-xs text-amber-400/90">
-                  Go to Team tab → add members by email (they must sign up first).
+                <p className="text-xs text-amber-400/90">
+                  Assign members in the <strong>Update & assign</strong> tab first.
                 </p>
               )}
-              <select name="priority" className="input-field !mt-0" defaultValue="MEDIUM">
-                <option value="LOW">Low priority</option>
-                <option value="MEDIUM">Medium priority</option>
-                <option value="HIGH">High priority</option>
-              </select>
-              <input name="dueDate" type="date" className="input-field !mt-0" />
-            </div>
-            <textarea
-              name="description"
-              placeholder="Description (optional)"
-              rows={2}
-              className="input-field resize-none"
-            />
-            <button type="submit" className="btn-primary">
-              Add Task
-            </button>
-          </form>
+              <textarea
+                name="description"
+                placeholder="Description (optional)"
+                rows={2}
+                className="input-field resize-none"
+              />
+              <button type="submit" className="btn-primary">
+                Add Task
+              </button>
+            </form>
           ) : (
             <p className="surface-card px-4 py-3 text-sm text-[var(--text-muted)]">
-              As a member, you only see tasks assigned to you. Update status from this list or{" "}
+              You only see tasks assigned to you. Update status on{" "}
               <a href="/my-tasks" className="text-[var(--accent-light)] hover:underline">
                 My Tasks
               </a>
@@ -262,7 +272,7 @@ export default function ProjectDetailPage() {
           {project.tasks.length === 0 ? (
             <div className="surface-card p-10 text-center text-[var(--text-muted)]">
               {isAdmin
-                ? "No tasks yet. Add one above to get started."
+                ? "No tasks yet. Add one above."
                 : "No tasks assigned to you in this project."}
             </div>
           ) : (
@@ -285,22 +295,23 @@ export default function ProjectDetailPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {isAdmin || task.assignee?.id === project.currentUserId ? (
-                    <select
-                      value={task.status}
-                      onChange={(e) => updateTaskStatus(task.id, e.target.value)}
-                      className="input-field !mt-0 w-auto py-1.5 text-xs"
-                    >
-                      {statuses.map((s) => (
-                        <option key={s} value={s}>
-                          {statusLabels[s]}
-                        </option>
-                      ))}
-                    </select>
+                      <select
+                        value={task.status}
+                        onChange={(e) => updateTaskStatus(task.id, e.target.value)}
+                        className="input-field !mt-0 w-auto py-1.5 text-xs"
+                      >
+                        {statuses.map((s) => (
+                          <option key={s} value={s}>
+                            {statusLabels[s]}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
                       <StatusBadge status={task.status} />
                     )}
                     {isAdmin && (
                       <button
+                        type="button"
                         onClick={() => deleteTask(task.id)}
                         className="text-sm text-rose-400 hover:text-rose-300"
                       >
@@ -314,58 +325,14 @@ export default function ProjectDetailPage() {
           )}
         </div>
       )}
-
-      {tab === "team" && (
-        <div className="space-y-6">
-          {isAdmin && (
-            <form onSubmit={addMember} className="surface-card space-y-4 p-6">
-              <h2 className="font-bold text-white">Invite Team Member</h2>
-              <p className="text-xs text-[var(--text-dim)]">User must already have an account</p>
-              <div className="flex flex-wrap gap-3">
-                <input
-                  name="email"
-                  type="email"
-                  placeholder="colleague@company.com"
-                  required
-                  className="input-field min-w-[200px] flex-1 !mt-0"
-                />
-                <select name="role" className="input-field w-auto !mt-0">
-                  <option value="MEMBER">Member</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-                <button type="submit" className="btn-primary">
-                  Add Member
-                </button>
-              </div>
-            </form>
-          )}
-
-          <ul className="surface-card divide-y divide-[var(--border-subtle)] overflow-hidden">
-            {teamMembers.map((m) => (
-              <li
-                key={m.id}
-                className="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-[var(--surface-hover)]"
-              >
-                <div>
-                  <p className="font-semibold text-white">{m.user.name}</p>
-                  <p className="text-sm text-[var(--text-dim)]">{m.user.email}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge status={m.role} />
-                  {isAdmin && (
-                    <button
-                      onClick={() => removeMember(m.id)}
-                      className="text-sm text-rose-400 hover:text-rose-300"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
+  );
+}
+
+export default function ProjectDetailPage() {
+  return (
+    <Suspense fallback={<LoadingPulse text="Loading project..." />}>
+      <ProjectDetailContent />
+    </Suspense>
   );
 }

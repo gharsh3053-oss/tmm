@@ -4,7 +4,9 @@ import { createToken, setSessionCookie } from "@/lib/auth";
 import { handleAuthRouteError, jsonError } from "@/lib/api";
 import { handleDbError } from "@/lib/db-error";
 import { isAuthConfigured } from "@/lib/auth";
+import { SystemRole } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
+import { isAdminEmail, touchLastActive } from "@/lib/system-admin";
 import { signupSchema } from "@/lib/validations";
 
 export async function POST(req: NextRequest) {
@@ -31,7 +33,13 @@ export async function POST(req: NextRequest) {
 
     const hashed = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { email, password: hashed, name },
+      data: {
+        email,
+        password: hashed,
+        name,
+        systemRole: isAdminEmail(email) ? SystemRole.PLATFORM_ADMIN : SystemRole.USER,
+        lastActiveAt: new Date(),
+      },
     });
 
     const token = await createToken({

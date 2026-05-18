@@ -5,6 +5,13 @@ export const ProjectRole = {
 
 export type ProjectRole = (typeof ProjectRole)[keyof typeof ProjectRole];
 
+export const SystemRole = {
+  USER: "USER",
+  PLATFORM_ADMIN: "PLATFORM_ADMIN",
+} as const;
+
+export type SystemRole = (typeof SystemRole)[keyof typeof SystemRole];
+
 export const TaskStatus = {
   TODO: "TODO",
   IN_PROGRESS: "IN_PROGRESS",
